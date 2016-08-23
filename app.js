@@ -62,10 +62,25 @@ server.get('/login', function(req, res, next) {
     })(req, res, next);
 });
 
-server.get('/api/OAuthCallback/',
+server.get('/auth/openid',
+  passport.authenticate('azuread-openidconnect', { failureRedirect: '/login' }),
+  function (req, res) {
+    console.log('Authenitcation was called in the Sample');
+    res.redirect('/');
+  });
+
+server.get('/auth/openid/return',
+  passport.authenticate('azuread-openidconnect', { failureRedirect: '/login' }),
+  function (req, res) {
+    console.log('get');
+    log.info('We received a return from AzureAD.');
+    res.redirect('/');
+  });
+
+server.post('/auth/openid/return',
   passport.authenticate('azuread-openidconnect', { failureRedirect: '/login', state: 'ritatest' }),
   function (req, res) {
-    console.log('Returned from AzureAD.');
+    console.log('Returned from get callback.');
     console.log('authcode: ' + req.query.code);
     console.log('state: ' + req.query.state);
 
@@ -109,18 +124,19 @@ passport.deserializeUser(function(id, done) {
 });
 
 // Use the v2 endpoint (applications configured by apps.dev.microsoft.com)
-var realm = process.env.MICROSOFT_REALM;
+//var realm = process.env.MICROSOFT_REALM;
 let oidStrategyv2 = {
-    callbackURL: process.env.AUTHBOT_CALLBACKHOST + '/api/OAuthCallback',
-    realm: realm,
+    callbackURL: process.env.AUTHBOT_CALLBACKHOST + '/auth/openid/return',
     clientID: process.env.MICROSOFT_APP_ID,
     clientSecret: process.env.MICROSOFT_APP_PASSWORD,
-    identityMetadata: 'https://login.microsoftonline.com/' + realm + '/v2.0/.well-known/openid-configuration',
+    identityMetadata: 'https://login.microsoftonline.com/' + 'common' + '/v2.0/.well-known/openid-configuration',
     skipUserProfile: true,
-    responseType: 'code',
-    responseMode: 'query',
+    responseType: 'id_token',//'code',
+    responseMode: 'form_post', //'query',
     scope: ['email', 'profile'],
-    passReqToCallback: true
+    validateIssuer: false,
+    passReqToCallback: false,
+    loggingLevel: 'info'
 };
 
 // Use the v1 endpoint (applications configured by manage.windowsazure.com)
@@ -148,10 +164,10 @@ if ( process.env.AUTHBOT_STRATEGY == 'oidStrategyv2') {
 }
 
 passport.use(new OIDCStrategy(strategy,
-  function(req, iss, sub, profile, accessToken, refreshToken, done) {
+  function(profile, done) {//req, iss, sub, profile, accessToken, refreshToken, done) {
     console.log('strategy returned');
-    console.log('accessToken: ' + accessToken);
-    console.log('refreshToken: ' + refreshToken);
+    // console.log('accessToken: ' + accessToken);
+    // console.log('refreshToken: ' + refreshToken);
 
     if (!profile.email) {
       console.log('no profile email');
